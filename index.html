@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>恐竜ジャンプゲーム</title>
+    <title>無限イライラ棒 - Infinite Wire Frustration</title>
     <style>
         * {
             margin: 0;
@@ -16,71 +16,91 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
-            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #0a0a1a 100%);
+            font-family: 'Orbitron', 'Arial', sans-serif;
+            overflow: hidden;
         }
 
         #gameContainer {
             text-align: center;
-            background: white;
+            background: rgba(10, 10, 30, 0.8);
             padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border-radius: 20px;
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.3), 0 0 80px rgba(138, 43, 226, 0.2);
+            border: 2px solid rgba(0, 255, 255, 0.3);
         }
 
         h1 {
-            color: #4A4A4A;
-            margin-bottom: 10px;
-            font-size: 28px;
+            color: #00ffff;
+            margin-bottom: 15px;
+            font-size: 32px;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.8),
+                         0 0 40px rgba(0, 255, 255, 0.5);
+            letter-spacing: 3px;
         }
 
         #gameCanvas {
-            border: 3px solid #4A4A4A;
+            border: 3px solid rgba(138, 43, 226, 0.6);
             border-radius: 10px;
             display: block;
             margin: 0 auto;
-            background: #FFF9E6;
+            background: #0a0a1a;
+            box-shadow: 0 0 30px rgba(138, 43, 226, 0.4) inset,
+                        0 0 40px rgba(0, 255, 255, 0.2);
         }
 
         #score {
-            font-size: 24px;
-            color: #4A4A4A;
-            margin-top: 10px;
+            font-size: 28px;
+            color: #00ffff;
+            margin-top: 15px;
             font-weight: bold;
+            text-shadow: 0 0 15px rgba(0, 255, 255, 0.8);
         }
 
         #highScore {
-            font-size: 18px;
-            color: #666;
-            margin-top: 5px;
+            font-size: 20px;
+            color: #ff00ff;
+            margin-top: 8px;
+            text-shadow: 0 0 10px rgba(255, 0, 255, 0.6);
         }
 
         #instructions {
             margin-top: 15px;
-            color: #666;
+            color: #8a8aff;
             font-size: 14px;
+            text-shadow: 0 0 5px rgba(138, 138, 255, 0.5);
         }
 
         .key {
             display: inline-block;
-            padding: 5px 10px;
-            background: #4A4A4A;
-            color: white;
+            padding: 5px 12px;
+            background: linear-gradient(135deg, rgba(138, 43, 226, 0.3), rgba(0, 255, 255, 0.3));
+            color: #00ffff;
             border-radius: 5px;
             margin: 0 3px;
             font-weight: bold;
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        #gameContainer {
+            animation: pulse 3s ease-in-out infinite;
         }
     </style>
 </head>
 <body>
     <div id="gameContainer">
-        <h1>🦖 恐竜ジャンプゲーム 🦖</h1>
-        <canvas id="gameCanvas" width="800" height="300"></canvas>
-        <div id="score">スコア: 0</div>
-        <div id="highScore">最高得点: 0</div>
+        <h1>⚡ 無限イライラ棒 ⚡</h1>
+        <canvas id="gameCanvas" width="900" height="600"></canvas>
+        <div id="score">距離: 0m</div>
+        <div id="highScore">最高記録: 0m</div>
         <div id="instructions">
-            <span class="key">スペース</span> または <span class="key">↑</span> でジャンプ |
-            <span class="key">↓</span> でしゃがむ |
+            <span class="key">矢印キー</span> または <span class="key">マウス</span> で球を操作 |
             <span class="key">R</span> でリスタート
         </div>
     </div>
@@ -95,122 +115,132 @@
         let gameRunning = false;
         let gameOver = false;
         let score = 0;
-        let highScore = localStorage.getItem('dinoHighScore') || 0;
+        let highScore = localStorage.getItem('wireHighScore') || 0;
         let frameCount = 0;
-        let gameSpeed = 5;
+        let gameSpeed = 3;
+        let baseSpeed = 3;
 
-        // 恐竜
-        const dino = {
-            x: 50,
-            y: 200,
-            width: 40,
-            height: 50,
-            velocityY: 0,
-            jumping: false,
-            ducking: false,
-            normalHeight: 50,
-            duckHeight: 30,
+        // プレイヤー（球）
+        const player = {
+            x: 150,
+            y: canvas.height / 2,
+            radius: 12,
+            targetX: 150,
+            targetY: canvas.height / 2,
+            speed: 0.15,
+            trail: [],
+            trailLength: 15,
+
             draw: function() {
-                ctx.fillStyle = '#4CAF50';
+                // 軌跡を描画
+                for (let i = 0; i < this.trail.length; i++) {
+                    const alpha = i / this.trail.length;
+                    const radius = this.radius * alpha;
+                    const gradient = ctx.createRadialGradient(
+                        this.trail[i].x, this.trail[i].y, 0,
+                        this.trail[i].x, this.trail[i].y, radius
+                    );
+                    gradient.addColorStop(0, `rgba(0, 255, 255, ${alpha * 0.6})`);
+                    gradient.addColorStop(0.5, `rgba(138, 43, 226, ${alpha * 0.4})`);
+                    gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
 
-                if (this.ducking) {
-                    // しゃがんでいる恐竜
-                    ctx.fillRect(this.x, this.y + 20, this.width, this.duckHeight);
-                    // 頭
-                    ctx.fillRect(this.x, this.y + 15, 20, 20);
-                    // 目
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(this.x + 12, this.y + 18, 5, 5);
-                    ctx.fillStyle = 'black';
-                    ctx.fillRect(this.x + 14, this.y + 20, 2, 2);
-                } else {
-                    // 体
-                    ctx.fillRect(this.x, this.y, this.width, this.height);
-                    // 頭
-                    ctx.fillRect(this.x, this.y - 15, 25, 20);
-                    // 目
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(this.x + 15, this.y - 10, 6, 6);
-                    ctx.fillStyle = 'black';
-                    ctx.fillRect(this.x + 17, this.y - 8, 3, 3);
+                    ctx.beginPath();
+                    ctx.arc(this.trail[i].x, this.trail[i].y, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                }
 
-                    // 脚のアニメーション
-                    ctx.fillStyle = '#4CAF50';
-                    const legOffset = Math.floor(frameCount / 10) % 2 === 0 ? 0 : 5;
-                    ctx.fillRect(this.x + 5, this.y + this.height, 8, 10 + legOffset);
-                    ctx.fillRect(this.x + 27, this.y + this.height, 8, 10 + (5 - legOffset));
-                }
+                // 外側のグロー
+                const outerGlow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius * 2.5);
+                outerGlow.addColorStop(0, 'rgba(0, 255, 255, 0.5)');
+                outerGlow.addColorStop(0.5, 'rgba(138, 43, 226, 0.3)');
+                outerGlow.addColorStop(1, 'rgba(0, 255, 255, 0)');
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 2.5, 0, Math.PI * 2);
+                ctx.fillStyle = outerGlow;
+                ctx.fill();
+
+                // 球本体
+                const gradient = ctx.createRadialGradient(
+                    this.x - this.radius * 0.3,
+                    this.y - this.radius * 0.3,
+                    0,
+                    this.x,
+                    this.y,
+                    this.radius
+                );
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(0.3, '#00ffff');
+                gradient.addColorStop(0.7, '#8a2be2');
+                gradient.addColorStop(1, '#4a0e78');
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+
+                // 内側のハイライト
+                ctx.beginPath();
+                ctx.arc(this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.4, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fill();
             },
-            jump: function() {
-                if (!this.jumping && !this.ducking) {
-                    this.velocityY = -12;
-                    this.jumping = true;
-                }
-            },
-            duck: function() {
-                if (!this.jumping) {
-                    this.ducking = true;
-                    this.height = this.duckHeight;
-                    this.y = 220;
-                }
-            },
-            stand: function() {
-                this.ducking = false;
-                this.height = this.normalHeight;
-                this.y = 200;
-            },
+
             update: function() {
-                // 重力
-                if (this.jumping) {
-                    this.velocityY += 0.6;
-                    this.y += this.velocityY;
+                // スムーズに目標位置に移動
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                this.x += dx * this.speed;
+                this.y += dy * this.speed;
 
-                    // 地面に着地
-                    if (this.y >= 200) {
-                        this.y = 200;
-                        this.velocityY = 0;
-                        this.jumping = false;
-                    }
+                // 軌跡を更新
+                this.trail.push({x: this.x, y: this.y});
+                if (this.trail.length > this.trailLength) {
+                    this.trail.shift();
                 }
             }
         };
 
-        // 障害物
-        class Obstacle {
-            constructor(type) {
-                this.type = type; // 'tree' or 'bird'
+        // 障害物（棒）
+        class Wire {
+            constructor() {
                 this.x = canvas.width;
-                this.width = type === 'tree' ? 25 : 35;
-                this.height = type === 'tree' ? 50 : 30;
-                this.y = type === 'tree' ? 200 : 200;
+                this.gapY = Math.random() * (canvas.height - 250) + 125;
+                this.gapSize = Math.max(140 - Math.floor(score / 100) * 5, 100); // スコアに応じてギャップが狭くなる
+                this.width = 8;
+                this.passed = false;
+                this.hue = Math.random() * 60 + 280; // 紫〜青の範囲
             }
 
             draw() {
-                if (this.type === 'tree') {
-                    // 木
-                    ctx.fillStyle = '#8B4513';
-                    ctx.fillRect(this.x + 8, this.y + 20, 10, 30);
-                    ctx.fillStyle = '#228B22';
-                    ctx.beginPath();
-                    ctx.arc(this.x + 13, this.y + 15, 15, 0, Math.PI * 2);
-                    ctx.fill();
-                } else {
-                    // 鳥
-                    ctx.fillStyle = '#FF6347';
-                    // 体
-                    ctx.fillRect(this.x + 10, this.y + 10, 20, 15);
-                    // 頭
-                    ctx.fillRect(this.x + 25, this.y + 8, 10, 10);
-                    // くちばし
-                    ctx.fillStyle = '#FFA500';
-                    ctx.fillRect(this.x + 35, this.y + 12, 5, 3);
+                const gradient1 = ctx.createLinearGradient(this.x - 5, 0, this.x + 5, 0);
+                gradient1.addColorStop(0, `hsla(${this.hue}, 100%, 50%, 0)`);
+                gradient1.addColorStop(0.5, `hsla(${this.hue}, 100%, 70%, 1)`);
+                gradient1.addColorStop(1, `hsla(${this.hue}, 100%, 50%, 0)`);
 
-                    // 翼のアニメーション
-                    ctx.fillStyle = '#FF6347';
-                    const wingOffset = Math.floor(frameCount / 5) % 2 === 0 ? -5 : 5;
-                    ctx.fillRect(this.x + 5, this.y + 12 + wingOffset, 8, 3);
-                    ctx.fillRect(this.x + 30, this.y + 12 - wingOffset, 8, 3);
-                }
+                // 上の棒
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = `hsla(${this.hue}, 100%, 70%, 0.8)`;
+                ctx.fillStyle = gradient1;
+                ctx.fillRect(this.x - this.width / 2, 0, this.width, this.gapY - this.gapSize / 2);
+
+                // 下の棒
+                ctx.fillRect(this.x - this.width / 2, this.gapY + this.gapSize / 2, this.width, canvas.height);
+                ctx.shadowBlur = 0;
+
+                // 棒の端にグロー効果
+                const endGlow = ctx.createRadialGradient(this.x, this.gapY - this.gapSize / 2, 0, this.x, this.gapY - this.gapSize / 2, 20);
+                endGlow.addColorStop(0, `hsla(${this.hue}, 100%, 70%, 0.8)`);
+                endGlow.addColorStop(1, `hsla(${this.hue}, 100%, 70%, 0)`);
+                ctx.fillStyle = endGlow;
+                ctx.fillRect(this.x - 20, this.gapY - this.gapSize / 2 - 5, 40, 10);
+
+                const endGlow2 = ctx.createRadialGradient(this.x, this.gapY + this.gapSize / 2, 0, this.x, this.gapY + this.gapSize / 2, 20);
+                endGlow2.addColorStop(0, `hsla(${this.hue}, 100%, 70%, 0.8)`);
+                endGlow2.addColorStop(1, `hsla(${this.hue}, 100%, 70%, 0)`);
+                ctx.fillStyle = endGlow2;
+                ctx.fillRect(this.x - 20, this.gapY + this.gapSize / 2 - 5, 40, 10);
             }
 
             update() {
@@ -221,159 +251,200 @@
                 return this.x + this.width < 0;
             }
 
-            collidesWith(dino) {
-                const dinoHeight = dino.ducking ? dino.duckHeight : dino.normalHeight;
-                const dinoY = dino.ducking ? dino.y + 20 : dino.y;
+            collidesWith(player) {
+                const distance = Math.sqrt(Math.pow(player.x - this.x, 2) + Math.pow(player.y - this.gapY, 2));
 
-                return (
-                    dino.x < this.x + this.width - 10 &&
-                    dino.x + dino.width - 10 > this.x &&
-                    dinoY < this.y + this.height - 5 &&
-                    dinoY + dinoHeight - 5 > this.y
-                );
+                // 上の棒との衝突
+                if (player.x + player.radius > this.x - this.width / 2 &&
+                    player.x - player.radius < this.x + this.width / 2 &&
+                    player.y - player.radius < this.gapY - this.gapSize / 2) {
+                    return true;
+                }
+
+                // 下の棒との衝突
+                if (player.x + player.radius > this.x - this.width / 2 &&
+                    player.x - player.radius < this.x + this.width / 2 &&
+                    player.y + player.radius > this.gapY + this.gapSize / 2) {
+                    return true;
+                }
+
+                return false;
             }
         }
 
-        let obstacles = [];
-        let nextObstacleDistance = 400; // 次の障害物までの距離（ピクセル）
-        let distanceTraveled = 0; // 移動した距離
+        let wires = [];
+        let nextWireDistance = 250;
+        let distanceTraveled = 0;
 
-        // 地面を描画
-        function drawGround() {
-            ctx.strokeStyle = '#4A4A4A';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(0, 250);
-            ctx.lineTo(canvas.width, 250);
-            ctx.stroke();
-
-            // 地面の草
-            ctx.fillStyle = '#90EE90';
-            for (let i = 0; i < canvas.width; i += 30) {
-                const offset = (frameCount + i) % 30;
-                ctx.fillRect(i - offset, 250, 3, 5);
-                ctx.fillRect(i - offset + 10, 250, 3, 7);
-                ctx.fillRect(i - offset + 20, 250, 3, 6);
-            }
+        // 背景のスター描画
+        const stars = [];
+        for (let i = 0; i < 100; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2,
+                speed: Math.random() * 0.5 + 0.2
+            });
         }
 
-        // 雲を描画
-        function drawClouds() {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            const cloudOffset = (frameCount * 0.5) % (canvas.width + 100);
+        function drawStars() {
+            stars.forEach(star => {
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.5})`;
+                ctx.fill();
 
-            ctx.beginPath();
-            ctx.arc(100 - cloudOffset, 50, 20, 0, Math.PI * 2);
-            ctx.arc(120 - cloudOffset, 50, 25, 0, Math.PI * 2);
-            ctx.arc(140 - cloudOffset, 50, 20, 0, Math.PI * 2);
-            ctx.fill();
+                star.x -= star.speed * gameSpeed;
+                if (star.x < 0) {
+                    star.x = canvas.width;
+                    star.y = Math.random() * canvas.height;
+                }
+            });
+        }
 
-            ctx.beginPath();
-            ctx.arc(400 - cloudOffset, 80, 15, 0, Math.PI * 2);
-            ctx.arc(415 - cloudOffset, 80, 20, 0, Math.PI * 2);
-            ctx.arc(430 - cloudOffset, 80, 15, 0, Math.PI * 2);
-            ctx.fill();
+        // グリッド描画
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            const gridSize = 40;
+            const offset = (frameCount * gameSpeed * 0.5) % gridSize;
 
-            ctx.beginPath();
-            ctx.arc(700 - cloudOffset, 60, 18, 0, Math.PI * 2);
-            ctx.arc(718 - cloudOffset, 60, 23, 0, Math.PI * 2);
-            ctx.arc(738 - cloudOffset, 60, 18, 0, Math.PI * 2);
-            ctx.fill();
+            for (let x = -offset; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
         }
 
         // ゲームオーバー画面
         function drawGameOver() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 48px Arial';
+            // ゲームオーバーテキスト
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = 'rgba(255, 0, 100, 0.8)';
+            ctx.fillStyle = '#ff0066';
+            ctx.font = 'bold 56px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('ゲームオーバー!', canvas.width / 2, canvas.height / 2 - 20);
+            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 40);
 
-            ctx.font = '24px Arial';
-            ctx.fillText(`スコア: ${score}`, canvas.width / 2, canvas.height / 2 + 30);
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(0, 255, 255, 0.8)';
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '28px Arial';
+            ctx.fillText(`距離: ${score}m`, canvas.width / 2, canvas.height / 2 + 20);
 
             if (score >= highScore) {
-                ctx.fillStyle = '#FFD700';
-                ctx.fillText('🎉 新記録! 🎉', canvas.width / 2, canvas.height / 2 + 70);
+                ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 32px Arial';
+                ctx.fillText('★ NEW RECORD ★', canvas.width / 2, canvas.height / 2 + 70);
             }
 
-            ctx.fillStyle = 'white';
-            ctx.font = '18px Arial';
-            ctx.fillText('スペースキーまたはRキーでリスタート', canvas.width / 2, canvas.height / 2 + 110);
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = '#8a8aff';
+            ctx.font = '20px Arial';
+            ctx.fillText('Rキーでリスタート', canvas.width / 2, canvas.height / 2 + 120);
+            ctx.shadowBlur = 0;
         }
 
         // スタート画面
         function drawStartScreen() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            ctx.fillStyle = '#4A4A4A';
-            ctx.font = 'bold 32px Arial';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = 'rgba(0, 255, 255, 0.8)';
+            ctx.fillStyle = '#00ffff';
+            ctx.font = 'bold 36px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('スペースキーでスタート!', canvas.width / 2, canvas.height / 2);
+
+            const pulse = Math.sin(frameCount * 0.05) * 0.2 + 1;
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(pulse, pulse);
+            ctx.fillText('クリックしてスタート!', 0, 0);
+            ctx.restore();
+
+            ctx.shadowBlur = 0;
         }
 
         // ゲームループ
         function gameLoop() {
-            // 背景をクリア
-            ctx.fillStyle = '#FFF9E6';
+            // 背景
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGradient.addColorStop(0, '#0a0a1a');
+            bgGradient.addColorStop(0.5, '#1a0a2a');
+            bgGradient.addColorStop(1, '#0a0a1a');
+            ctx.fillStyle = bgGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // 雲を描画
-            drawClouds();
-
-            // 地面を描画
-            drawGround();
+            // 星とグリッドを描画
+            drawStars();
+            drawGrid();
 
             if (gameRunning && !gameOver) {
                 frameCount++;
-
-                // 移動距離を更新
                 distanceTraveled += gameSpeed;
 
-                // スコア更新
-                if (frameCount % 5 === 0) {
+                // スコア更新（10フレームごとに1m）
+                if (frameCount % 10 === 0) {
                     score++;
-                    scoreElement.textContent = `スコア: ${score}`;
+                    scoreElement.textContent = `距離: ${score}m`;
                 }
 
-                // スピードアップ
-                if (frameCount % 500 === 0) {
-                    gameSpeed += 0.5;
+                // スピードアップ（100mごとに0.3加速）
+                if (frameCount % 1000 === 0) {
+                    gameSpeed = Math.min(baseSpeed + Math.floor(score / 100) * 0.3, 10);
                 }
 
-                // 恐竜の更新と描画
-                dino.update();
-                dino.draw();
+                // プレイヤーの更新と描画
+                player.update();
+                player.draw();
 
-                // 障害物の生成（距離ベース）
-                if (distanceTraveled >= nextObstacleDistance) {
-                    const type = Math.random() < 0.6 ? 'tree' : 'bird';
-                    obstacles.push(new Obstacle(type));
-                    // 次の障害物までの距離を設定（300-500ピクセルのランダムな距離）
-                    nextObstacleDistance = distanceTraveled + Math.floor(Math.random() * 200) + 300;
+                // 障害物の生成
+                if (distanceTraveled >= nextWireDistance) {
+                    wires.push(new Wire());
+                    nextWireDistance = distanceTraveled + Math.floor(Math.random() * 100) + 200;
                 }
 
                 // 障害物の更新と描画
-                for (let i = obstacles.length - 1; i >= 0; i--) {
-                    obstacles[i].update();
-                    obstacles[i].draw();
+                for (let i = wires.length - 1; i >= 0; i--) {
+                    wires[i].update();
+                    wires[i].draw();
 
                     // 衝突判定
-                    if (obstacles[i].collidesWith(dino)) {
+                    if (wires[i].collidesWith(player)) {
                         gameOver = true;
                         if (score > highScore) {
                             highScore = score;
-                            localStorage.setItem('dinoHighScore', highScore);
-                            highScoreElement.textContent = `最高得点: ${highScore}`;
+                            localStorage.setItem('wireHighScore', highScore);
+                            highScoreElement.textContent = `最高記録: ${highScore}m`;
                         }
                     }
 
-                    // 画面外の障害物を削除
-                    if (obstacles[i].isOffScreen()) {
-                        obstacles.splice(i, 1);
+                    // 画面外に出たか確認
+                    if (wires[i].isOffScreen()) {
+                        wires.splice(i, 1);
+                    }
+                }
+
+                // 壁との衝突判定
+                if (player.y - player.radius < 0 || player.y + player.radius > canvas.height) {
+                    gameOver = true;
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('wireHighScore', highScore);
+                        highScoreElement.textContent = `最高記録: ${highScore}m`;
                     }
                 }
 
@@ -381,11 +452,12 @@
                     drawGameOver();
                 }
             } else {
-                // ゲーム開始前
-                dino.draw();
+                player.draw();
                 if (!gameOver) {
                     drawStartScreen();
                 } else {
+                    // 障害物も描画
+                    wires.forEach(wire => wire.draw());
                     drawGameOver();
                 }
             }
@@ -393,25 +465,27 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // キーボード入力
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') {
-                e.preventDefault();
-                if (!gameRunning && !gameOver) {
-                    gameRunning = true;
-                } else if (gameOver) {
-                    restartGame();
-                } else {
-                    dino.jump();
-                }
+        // マウス操作
+        canvas.addEventListener('mousemove', (e) => {
+            if (gameRunning && !gameOver) {
+                const rect = canvas.getBoundingClientRect();
+                player.targetX = e.clientX - rect.left;
+                player.targetY = e.clientY - rect.top;
             }
+        });
 
-            if (e.code === 'ArrowDown') {
-                e.preventDefault();
-                if (gameRunning && !gameOver) {
-                    dino.duck();
-                }
+        canvas.addEventListener('click', (e) => {
+            if (!gameRunning && !gameOver) {
+                gameRunning = true;
+            } else if (gameOver) {
+                restartGame();
             }
+        });
+
+        // キーボード操作
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
 
             if (e.code === 'KeyR') {
                 e.preventDefault();
@@ -420,10 +494,19 @@
         });
 
         document.addEventListener('keyup', (e) => {
-            if (e.code === 'ArrowDown') {
-                dino.stand();
-            }
+            keys[e.code] = false;
         });
+
+        // キーボードでの移動
+        setInterval(() => {
+            if (gameRunning && !gameOver) {
+                const moveSpeed = 8;
+                if (keys['ArrowUp']) player.targetY = Math.max(player.radius, player.targetY - moveSpeed);
+                if (keys['ArrowDown']) player.targetY = Math.min(canvas.height - player.radius, player.targetY + moveSpeed);
+                if (keys['ArrowLeft']) player.targetX = Math.max(player.radius, player.targetX - moveSpeed);
+                if (keys['ArrowRight']) player.targetX = Math.min(canvas.width - player.radius, player.targetX + moveSpeed);
+            }
+        }, 1000 / 60);
 
         // ゲームのリスタート
         function restartGame() {
@@ -431,20 +514,20 @@
             gameOver = false;
             score = 0;
             frameCount = 0;
-            gameSpeed = 5;
-            obstacles = [];
-            nextObstacleDistance = 400;
+            gameSpeed = baseSpeed;
+            wires = [];
+            nextWireDistance = 250;
             distanceTraveled = 0;
-            dino.y = 200;
-            dino.velocityY = 0;
-            dino.jumping = false;
-            dino.ducking = false;
-            dino.height = dino.normalHeight;
-            scoreElement.textContent = 'スコア: 0';
+            player.x = 150;
+            player.y = canvas.height / 2;
+            player.targetX = 150;
+            player.targetY = canvas.height / 2;
+            player.trail = [];
+            scoreElement.textContent = '距離: 0m';
         }
 
         // 最高得点を表示
-        highScoreElement.textContent = `最高得点: ${highScore}`;
+        highScoreElement.textContent = `最高記録: ${highScore}m`;
 
         // ゲーム開始
         gameLoop();
