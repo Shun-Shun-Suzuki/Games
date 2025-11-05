@@ -182,7 +182,7 @@
                 this.x = canvas.width;
                 this.width = type === 'tree' ? 25 : 35;
                 this.height = type === 'tree' ? 50 : 30;
-                this.y = type === 'tree' ? 200 : 150;
+                this.y = type === 'tree' ? 200 : 170;
             }
 
             draw() {
@@ -235,7 +235,8 @@
         }
 
         let obstacles = [];
-        let nextObstacleFrame = 100;
+        let nextObstacleDistance = 400; // 次の障害物までの距離（ピクセル）
+        let distanceTraveled = 0; // 移動した距離
 
         // 地面を描画
         function drawGround() {
@@ -329,6 +330,9 @@
             if (gameRunning && !gameOver) {
                 frameCount++;
 
+                // 移動距離を更新
+                distanceTraveled += gameSpeed;
+
                 // スコア更新
                 if (frameCount % 5 === 0) {
                     score++;
@@ -344,11 +348,12 @@
                 dino.update();
                 dino.draw();
 
-                // 障害物の生成
-                if (frameCount >= nextObstacleFrame) {
+                // 障害物の生成（距離ベース）
+                if (distanceTraveled >= nextObstacleDistance) {
                     const type = Math.random() < 0.6 ? 'tree' : 'bird';
                     obstacles.push(new Obstacle(type));
-                    nextObstacleFrame = frameCount + Math.floor(Math.random() * 100) + 80;
+                    // 次の障害物までの距離を設定（300-500ピクセルのランダムな距離）
+                    nextObstacleDistance = distanceTraveled + Math.floor(Math.random() * 200) + 300;
                 }
 
                 // 障害物の更新と描画
@@ -428,7 +433,8 @@
             frameCount = 0;
             gameSpeed = 5;
             obstacles = [];
-            nextObstacleFrame = 100;
+            nextObstacleDistance = 400;
+            distanceTraveled = 0;
             dino.y = 200;
             dino.velocityY = 0;
             dino.jumping = false;
